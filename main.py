@@ -5,6 +5,7 @@ import json
 import os
 import re
 from string import Template
+import hashlib
 
 
 def copy_badge(bucket_name, obj, new_obj):
@@ -36,6 +37,11 @@ def build_badge(event, context):
     bucket = os.environ['BADGES_BUCKET']
 
     try:
+        build = [n for n in data['options']['env'] if n.startswith('BUILD_NAME')][0].split('=')[1]
+    except (KeyError, IndexError):
+        build = hashlib.sha1(data['id'].encode('UTF-8')).hexdigest()[:10]
+
+    try:
         repo = data['source']['repoSource']['repoName']
         branch = data['source']['repoSource']['branchName']
 
@@ -48,10 +54,10 @@ def build_badge(event, context):
         branch = data['substitutions']['BRANCH_NAME']
     finally:
         tmpl = os.environ.get('TEMPLATE_PATH',
-                'builds/${repo}/branches/${branch}.svg')
+                              'builds/${repo}/${branch}/${build}.svg')
 
         src = 'badges/{}.svg'.format(data['status'].lower())
-        dest = Template(tmpl).substitute(repo=repo, branch=branch)
+        dest = Template(tmpl).substitute(repo=repo, branch=branch, build=build)
 
         copy_badge(bucket, src, dest)
 
